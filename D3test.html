@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<html>
+  <head>
+    <style>
+      rect.bordered {
+        stroke: #E6E6E6;
+        stroke-width:2px;
+      }
+
+      text.mono {
+        font-size: 9pt;
+        font-family: Consolas, courier;
+        fill: #aaa;
+      }
+
+      text.axis-workweek {
+        fill: #000;
+      }
+
+      text.axis-worktime {
+        fill: #000;
+      }
+      <!-- tooltip styles -->
+      text.mono {
+        font-size: 9pt;
+        font-family: Consolas, courier;
+        fill: #aaa;
+      }
+
+      text.text-selected {
+        fill: #000;
+      }
+
+      text.text-highlight {
+        fill: #c00;
+      }
+      text.text-hover {
+        fill: #00C;
+      }
+      #tooltip {
+        position: absolute;
+        width: 50px;
+        height: auto;
+        padding: 10px;
+        background-color: white;
+        -webkit-border-radius: 10px;
+        -moz-border-radius: 10px;
+        border-radius: 10px;
+        -webkit-box-shadow: 4px 4px 10px rgba(0, 0, 0, 0.4);
+        -moz-box-shadow: 4px 4px 10px rgba(0, 0, 0, 0.4);
+        box-shadow: 4px 4px 10px rgba(0, 0, 0, 0.4);
+        pointer-events: none;
+      }
+
+      #tooltip.hidden {
+        display: none;
+      }
+
+      #tooltip p {
+        margin: 0;
+        font-family: sans-serif;
+        font-size: 12px;
+        line-height: 20px;
+      }
+
+
+
+    </style>
+    <script src="http://d3js.org/d3.v3.js"></script>
+  </head>
+  <body>
+    <div id="tooltip" class="hidden">
+        <p><span id="value"></p>
+    </div>
+    <div id="chart"></div>
+    <div id="dataset-picker">
+    </div>
+    <script type="text/javascript">
+      var margin = { top: 50, right: 50, bottom: 100, left: 200 },
+          width = 960 - margin.left - margin.right,
+          height = 430 - margin.top - margin.bottom,
+          gridSize = Math.floor(width / 21),
+          legendElementWidth = gridSize*2,
+          colors_count = 5,
+
+          colors = ["#ffffcc", "#ffe5cc", "#ffcc99", "#ff6666", "#ff0000"]
+          //colors = ["#ffffd9","#edf8b1","#c7e9b4","#7fcdbb","#41b6c4","#1d91c0","#225ea8","#253494","#081d58"], // alternatively colorbrewer.YlGnBu[9]
+          recurrence = ["Immediate Term (1Y)", "Short Term (2-5 years)", "Medium Term (5-10 years)", "Long Term (>10 years)"],
+          hazards = ["Earthquake", "Mass Movement", "Volcano", "Drought", "Storm", "Flood", "Wildfire", "Extreme Temperature",
+           "Epidemic and Pandemic", "Insect Infestation", "Economic Disruption", "Political Disruption", "Cultural Issues",
+           "Health Disruption", "Armed Conflict", "Terrorism", "Crime", "Environmental Disaster", "Industry Disruption",
+           "Services Supply Disruption", "HazMat Transport"];
+
+
+
+      datasets = ["data_mike.tsv","data.tsv"];
+
+
+      var svg = d3.select("#chart").append("svg")
+          .attr("width", width + margin.left + margin.right)
+          .attr("height", height + margin.top + margin.bottom)
+          .append("g")
+          .attr("transform", "translate(" + margin.left + "," + margin.top * 3 + ")");
+
+
+      var recurrenceLabels = svg.selectAll(".recurrenceLabel")
+          .data(recurrence)
+          .enter().append("text")
+            .text(function (d) { return d; })
+            .attr("x", 0)
+            .attr("y", function (d, i) { return i * gridSize; })
+            .style("text-anchor", "end")
+            .attr("transform", "translate(-6," + gridSize / 1.5 + ")")
+            .attr("class", function (d, i) { return ((i >= 0 && i <= 4) ? "dayLabel mono axis axis-workweek" : "dayLabel mono axis"); });
+
+      var hazardLabels = svg.selectAll(".hazardLabel")
+          .data(hazards)
+          .enter().append("text")
+            .text(function(d) { return d; })
+            //.attr("x", function(d, i) { return i * gridSize; })
+            //.attr("y", function(d, i) { return i * gridSize; })
+            .style("text-anchor", "start")
+            //.attr("transform", "translate(" + gridSize / 2 + ", -6) rotate(-45)")
+            .attr("transform", function(d, i) { return "translate(" + ( (i + 0.5) * gridSize) + ",-6)"+ "rotate(-45)";})
+            .attr("class", function(d, i) { return ((i >= 7 && i <= 16) ? "timeLabel mono axis axis-worktime" : "timeLabel mono axis"); })
+            ;
+
+
+      var heatmapChart = function(tsvFile) {
+        d3.tsv(tsvFile,
+        function(d) {
+          return {
+            hazard: +d.hazard,
+            recurrence: +d.recurrence,
+            value: +d.value
+          };
+        },
+        function(error, data) {
+/*
+          var colorScale = d3.scale.quantile()
+              .domain([0, colors_count - 1, d3.max(data, function (d) { return d.value; })])
+              .range(colors);
+*/
+          var colorScale = d3.scale.ordinal()
+              .domain([0, colors_count - 1])
+              .range(colors);
+
+
+
+          var cards = svg.selectAll(".recurrence")
+              .data(data, function(d) {return d.hazard+':'+d.recurrence;});
+
+          cards.append("title");
+
+
+          cards.enter().append("rect")
+              .attr("x", function(d) { return (d.hazard - 1) * gridSize; })
+              .attr("y", function(d) { return (d.recurrence - 1) * gridSize; })
+              .attr("rx", 4)
+              .attr("ry", 4)
+              .attr("class", "hour bordered")
+              .attr("width", gridSize)
+              .attr("height", gridSize)
+              .style("fill", colors[0])
+              .on("mouseover", function(d) {d3.select(this).classed("text-hover",true);})
+              .on("mouseout" , function(d) {d3.select(this).classed("text-hover",false);});
+
+
+          cards.transition().duration(1000)
+              .style("fill", function(d) { return colorScale(d.value); });
+
+
+
+          cards.select("title").text(function(d) { return d.value; })
+
+          cards.exit().remove();
+
+          cards.on("mouseover", function(d) {
+             d3.select(this)
+            .style("stroke","white")
+            .attr("stroke-width",3)
+            this.parentNode.appendChild(this);
+            var xPosition = parseFloat(d3.select(this).attr("x"))+gridSize/2;
+            var yPosition = parseFloat(d3.select(this).attr("y"))+gridSize/2;
+            d3.select("#tooltip")
+                  .style("left", (d3.event.pageX) + "px")
+                 .style("top", (d3.event.pageY) + "px")
+                 .select("#value")
+                 .text(d.value + " Events");
+               //Show the tooltip
+               d3.select("#tooltip").classed("hidden", false);
+
+
+
+            /*
+            if(d.value>0){
+                svg.append("text")
+                .attr("id","tooltip")
+                .attr("x", xPosition)
+                .attr("y", yPosition)
+                .style("fill", "blue")
+                .attr("text-anchor", "middle")
+                .attr("font-family", "sans-serif")
+                .attr("font-size", "6px")
+                //.attr("font-weight", "bold")
+                .text(d.value + " Events");
+                };
+            */
+                })
+
+
+            cards.on("mouseout", function() {
+                /*
+                d3.select("#tooltip").remove();
+                d3.select(this)
+                .style("stroke","#E6E6E6")
+                .attr("stroke-width",2);
+                */
+               d3.select(this).classed("cell-hover",false);
+               d3.select("#tooltip").classed("hidden", true);
+            });
+
+
+
+
+          var legend_ranges = ["No info./No impact", "No significant losses", "Disruption of function", "Material Losses", "Casualties"];
+
+          var legend = svg.selectAll(".legend")
+              //.data([0].concat(colorScale.quantiles()), function(d) { return d; });
+              .data([].concat(legend_ranges), function(d) {return d;});
+
+          legend.enter().append("g")
+              .attr("class", "legend");
+
+          legend.append("rect")
+            .attr("x", function(d, i) { return legendElementWidth * i; })
+            .attr("y", 190 + legendElementWidth)
+            .attr("width", legendElementWidth)
+            .attr("height", gridSize / 2)
+            .style("fill", function(d, i) { return colors[i]; });
+
+          legend.append("text")
+            .attr("class", "mono")
+            .text(function(d) { return d; })
+            //.attr("x", function(d, i) { return legendElementWidth * i; })
+            //.attr("y", 190 + legendElementWidth)
+            .attr("transform", function(d, i) { return "translate(" + ( (i + 0.5) * legendElementWidth) + ", 250)"+ "rotate(-45)";});
+
+          legend.exit().remove();
+
+
+        });
+      };
+
+
+     heatmapChart(datasets[0]);
+
+    /*
+      var datasetpicker = d3.select("#dataset-picker").selectAll(".dataset-button")
+        .data(datasets);
+
+      datasetpicker.enter()
+        .append("input")
+        .attr("value", function(d){ return "Dataset " + d })
+        .attr("type", "button")
+        .attr("class", "dataset-button")
+        .on("click", function(d) {
+          heatmapChart(d);
+        });
+        */
+    </script>
+  </body>
+</html>
+
+    </script>
+</body>
+</html>
